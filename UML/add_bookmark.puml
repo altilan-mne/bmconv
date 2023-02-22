@@ -1,0 +1,63 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+
+start
+:output_header(main_header);
+if (new bookmark name request) then (valid string)
+  if (try get_children(new name)) then (NodeNotExists)
+  else (no exception)
+    :output_string(duplicate name);
+    :return False;
+    stop
+  endif
+  :set attr 'name';
+  if (parent name request) then (string)
+    if (try get_children(parent name)) then (NodeNotExists)
+      :output_string(parent does not exist);
+      :return False;
+      stop
+    else (no exception)
+      if (is parent name a folder?) then (yes)
+        :set attr 'parent name';
+      else (no)
+        :output_string(parent is not a folder);
+        :return False;
+        stop
+      endif
+    endif
+' type request should be here !!!
+  if (add a folder?) then (no, url)
+    if (request url value) then (string)
+      :set attr 'url';
+    else (None)
+      :return False;
+      stop
+    endif
+    if (request icon value) then (string)
+      :set attr 'icon';
+    else (None)
+      :return False;
+      stop
+    endif
+    if (request keywords value) then (string)
+      :set attr 'keywords';
+    else (None)
+      :return False;
+      stop
+    endif
+  else (yes)
+  endif
+  :add_node (attrs, node_type);
+  :output_string(new bookmark added);
+  :return True;
+  else (None)
+    :return False;
+    stop
+  endif
+else (None or invalid chars)
+  :return False;
+  stop
+endif
+stop
+
+@enduml

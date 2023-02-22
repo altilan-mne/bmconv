@@ -1,0 +1,57 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+
+start
+:output_header(main_header);
+:start folder = 'roots'
+:start indent = 0;
+':output_loop entry;
+:output_loop;
+(A)
+:get result, children list;
+if (result) then (True, folder)
+  :output_header(folder BEGIN);
+  :indent += 8;
+  repeat: children iteration
+   :call output_loop (recursively);
+    (A)
+    detach
+    -[hidden]->
+    (B)
+   :return from recursion call;
+  repeat while
+  :output_header(folder END);
+else(False, url)
+  :output url name
+  with current indent;
+endif
+ if (return from output_loop) then (recursion)
+   (B)
+ else (end)
+   :return True;
+   stop
+ endif
+'
+'if (bookmark name request) then (None or invalid chars)
+'  :return False;
+'  stop
+'else (string)
+'  if (is name 'roots'?) then (yes)
+'    :output_string(folder roots can not be deleted);
+'    :return False;
+'    stop
+'  else (no)
+'  endif
+'  if (try model.delete_node) then (NodeNotExists, FolderNotEmpty)
+'    :output_string(folder does not exist),
+'                                 or
+'    output_string(folder does not empty;
+'    :return False;
+'    stop
+'  else (no exception)
+'    :output_string(success);
+'    :return True;
+'    stop
+'  endif
+'endif
+@enduml

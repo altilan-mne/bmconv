@@ -1,0 +1,23 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+
+start
+:output_header(main_header);
+:name request to open;
+if (name to open) then (string)
+  if (try open_database(name to open)) then (FileNotFoundError)
+    :output_string(File does not exist);
+    :return False;
+    stop
+  else (no exception)
+  endif
+  :menu_items = MAIN_MENU;
+  :output_string(current database name);
+  :return True;
+else (None)
+  :return False;
+  stop
+endif
+stop
+
+@enduml

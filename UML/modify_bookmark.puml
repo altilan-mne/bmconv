@@ -1,0 +1,141 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+'!pragma useVerticalIf on
+start
+:current node = 'roots';
+:clear folder stack;
+:view.output_header(main_header);
+
+while (endless loop)
+  if (try get children of current node) then (node exists)
+    if (get children result?) then (False -> url)
+      if (try get node fields) then (no exception)
+        :filter non-editable attrs of url;
+        note left: url section
+        :select url field to edit
+        check result, selected_field;
+        if (None, _)
+          :return False;
+'          note right: EOF break
+          stop
+        elseif (False, _)
+          :pop previous folder;
+          note right
+            return to
+            folder selection
+          end note
+          :pop previous folder children;
+'          note left: for field selection
+        elseif (True, _)
+          :edit field;
+          note right
+            edit field of url
+          end note
+          if (new field?) then (None)
+            :return False;
+            stop
+          else (string)
+            :set new attrs;
+            :model.update_node;
+            :view.output_string(success);
+            :return True;
+            stop
+          endif
+        else (otherwise)
+          :view.output_string(internal error);
+          :return False;
+          stop
+        endif
+
+      else (NodeNotExists)
+      :traceback.print_exception(internal error);
+      :sys.exit(1);
+      kill
+      endif
+    else (True -> folder)
+    endif
+      :select node or command
+      check result, selected_item;
+      note right: folder section
+      if (None, _)
+        :return False;
+        stop
+      elseif (False, 0)
+        if (is current folder 'root'?) then (yes)
+          :return True;
+          stop
+          note left: to the main menu
+        else (no)
+         :get the parent folder;
+        endif
+      elseif (False, 1)
+        if (try get folder fields) then (NodeNotExists)
+          :traceback.print_exception(internal error);
+          :sys.exit(1);
+          kill
+        else (no exception)
+          :filter non-editable attrs of folder;
+          :select folder field to edit
+          check result, selected_field;
+            if (None, _)
+              :return False;
+              stop
+            elseif (False, _)
+              :pop previous folder;
+              :get previous folder children;
+            elseif (True, _)
+              if (is selected field 'roots'?) then (no)
+                :edit selected field;
+                if (new field) then (None)
+                  :return False;
+                  stop
+                else (string)
+                  :set new attrs;
+                  :model.update_node;
+                  :folder name could be changed,
+                  get new name of the edited folder;
+                endif
+              else (yes)
+              :view.output_string(Folder roots can not to be renamed);
+              endif
+            else (otherwise)
+            :return False;
+            stop
+            endif
+        endif
+      elseif (True, _) then (yes)
+        :push current folder to stack;
+        :set selected folder as current;
+      else (otherwise)
+        :view.output_string(unexpected selection result)
+        :return False;
+        stop
+      endif
+  else (NodeNotExists)
+    :view.output_string(internal error);
+    :return False;
+    stop
+  endif
+endwhile
+-[hidden]->
+detach
+'  :read data;
+':output_header(main_header);
+':name request to open;
+'if (name to open) then (string)
+'  if (try open_database(name to open)) then (FileNotFoundError)
+'    :output_string(File does not exist);
+'    :return False;
+'    stop
+'  else (no exception)
+'  endif
+'  :menu_items = MAIN_MENU;
+'  :output_string(current database name);
+'  :return True;
+'else (None)
+'  :return False;
+'  stop
+'endif
+'stop
+
+@enduml

@@ -1,0 +1,61 @@
+@startuml
+'https://plantuml.com/activity-diagram-beta
+
+start
+:output_header(main_header);
+:source JSON filename request;
+if (filename) then (None)
+  :return False;
+  stop
+else (string)
+  if (try open filename) then (FileNotFoundError)
+    :output_string (file does not exist);
+    :return False;
+    stop
+  else (no exception)
+    if (try create new database) then (False)
+      :return False;
+      stop
+    else (True)
+     :set menu_items for select source format;
+     if (request for select format) then (None)
+       :return (True);
+       stop
+     else (valid)
+     endif
+       if (call a routine for selected source format,
+             check result) then (True)
+         :output_string(success)
+         return True;
+         stop
+       else (False)
+         :output_string(error)
+         return False;
+         stop
+       endif
+    endif
+  endif
+endif
+'if (bookmark name request) then (None or invalid chars)
+'  :return False;
+'  stop
+'else (string)
+'  if (is name 'roots'?) then (yes)
+'    :output_string(folder roots can not be deleted);
+'    :return False;
+'    stop
+'  else (no)
+'  endif
+'  if (try model.delete_node) then (NodeNotExists, FolderNotEmpty)
+'    :output_string(folder does not exist),
+'                                 or
+'    output_string(folder does not empty;
+'    :return False;
+'    stop
+'  else (no exception)
+'    :output_string(success);
+'    :return True;
+'    stop
+'  endif
+'endif
+@enduml
