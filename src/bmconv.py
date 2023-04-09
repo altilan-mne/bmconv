@@ -12,6 +12,7 @@ import argparse
 from functools import partial
 import json
 import typing as t
+import sqlite3
 
 from my_nodes import RootBookmarks
 from my_nodes import Folder
@@ -19,13 +20,10 @@ from my_nodes import Url
 from time_convert import stamp_to_string
 
 
-
 # common data
 version = 'BM file converter 2.0'
 list_input_formats = ['chrome', 'json', 'sqlite']
 list_output_formats = ['json', 'sqlite']
-
-
 
 class MyJSONEncoder(json.JSONEncoder):
     """Overwrite the default JSON encoder class from the json module
@@ -46,10 +44,144 @@ class MyJSONEncoder(json.JSONEncoder):
         else:
             super().default(obj)  # the object does not need to be transformed
 
-class ChromeToJSON:
-    """A class to convert Chrome bookmark (JSON) format into internal JSON format.
+
+class JSONToSQLite():
+    """A class to convert internal JSON format to the internal SQLite format.
+
     """
 
+    def __init__(self, filename: str, tree_image: dict):
+        """Constructor method.
+
+        :param filename:
+        """
+        self.cwd = os.getcwd()  # current working directory
+
+        # filename does not exist definitely
+        # ---- create a new db file, connection and cursor ----
+        self.conn = sqlite3.connect(filename)  # create a file and connect to it
+        self.conn.execute("PRAGMA FOREIGN_KEYS = ON")  # statement for switch on the 'ON DELETE CASCADE' option
+        self.cur = self.conn.cursor()  # create a db cursor
+
+        # ---- create 3 tables: tree, folder, url ----
+        self.cur.execute("""
+            CREATE TABLE tree
+                ( 
+                guid CHAR(36) NOT NULL,
+                parent_guid CHAR(36),
+                id_no INT DEFAULT 0,
+                name VARCHAR(4096) NOT NULL,
+                date_added CHAR(19) NOT NULL,
+                node_type BOOL,
+                CONSTRAINT node_pk PRIMARY KEY (guid),
+                CONSTRAINT node_ak UNIQUE (name)
+                )
+        """)  # create the main table 'tree'
+
+        self.cur.execute("""
+                    CREATE TABLE folder
+                        ( 
+                        node_id CHAR(36) NOT NULL,
+                        date_modified CHAR(19) NOT NULL,
+                        CONSTRAINT folder_pk PRIMARY KEY (node_id),
+                        CONSTRAINT folder_fk FOREIGN KEY (node_id) REFERENCES tree (guid) ON DELETE CASCADE
+                        )
+                """)  # create the table of folder attrs
+
+        self.cur.execute("""
+            CREATE TABLE url
+                ( 
+                node_id CHAR(36) NOT NULL,
+                url TEXT DEFAULT '',
+                icon TEXT DEFAULT '',
+                keywords TEXT DEFAULT '',
+                CONSTRAINT url_pk PRIMARY KEY (node_id),
+                CONSTRAINT url_fk FOREIGN KEY (node_id) REFERENCES tree (guid) ON DELETE CASCADE
+                )
+        """)  # create the table of url attrs
+
+        # ---- create the 'roots' node ----
+        roots_attrs = tree_image.copy()  # a swallow copy of roots field
+        roots_attrs['node_type'] = True  # add a node_type value to the params dict
+        roots_attrs['node_id'] = roots_attrs['guid']  # add primary key for the folder table
+        roots_attrs['parent_guid'] = None  # roots has not the parent guid
+        # roots_guid = str(uuid.uuid4())  # new guid for 'roots' folder
+        # parents_roots_guid = None  # parent guid for 'roots' is None
+        # roots_name = 'roots'  # roots name
+        # today = datetime.datetime.today().replace(microsecond=0)  # get today datetime object
+        # roots_date = datetime.datetime.isoformat(today)  # insert the current datetime as a string
+
+        self.cur.execute("""
+            INSERT INTO tree (guid, parent_guid, name, date_added, node_type)
+            VALUES (:guid, :parent_guid, :name, :date_added, :node_type)""",
+            roots_attrs)  # set 'roots' for table tree
+
+        self.cur.execute("""
+            INSERT INTO folder (node_id, date_modified)
+            VALUES (:node_id, :date_modified)""",
+            roots_attrs)  # set 'roots' folder attrs
+
+        self.conn.commit()  # execute and commit initial transaction
+
+    def add_node(self, attr_dict: dict, node_type: bool):
+        """Add a node to the SQLite database. All node fields already filled.
+
+        :param attr_dict: dictionary with initial node attributes
+        :param node_type: True for folder adding, False for url
+        :return:
+        """
+        # add node_type into dict because it disallows combining named and qmarks placeholders methods
+        attr_dict['node_type'] = node_type
+        # insert a record into the tree table
+        self.cur.execute("INSERT INTO tree "
+                         "(guid, parent_guid, id_no, name, date_added, node_type) "
+                         "VALUES (:guid, :parent_guid, :id_no, :name, :date_added, :node_type)",
+                         attr_dict)
+
+        # check node_type and fill the child table
+        if node_type:
+            # this is a folder
+            folder_dict = {'node_id': attr_dict['guid'],
+                           'date_modified': attr_dict['date_modified']
+                           }  # create a dict for a query
+
+            # insert linked record into the folder table
+            self.cur.execute("INSERT INTO folder "
+                             "(node_id, date_modified) "
+                             "VALUES (:node_id, :date_modified)",
+                             folder_dict)
+        else:
+            # this is an url
+            url_dict ={'node_id': attr_dict['guid'],
+                       'url': attr_dict['url'],
+                       'icon': attr_dict['icon'],
+                       'keywords': attr_dict['keywords']
+                        }  # default values
+
+            # insert linked record to the url table
+            self.cur.execute("INSERT INTO url "
+                             "(node_id, url, icon, keywords) "
+                             "VALUES (:node_id, :url, :icon, :keywords)",
+                             url_dict)
+            self.conn.commit()  # close the transaction
+
+    def convert(self, tree_image: t.Any):
+        """Convert internal JSON image (copied from file) to the SQLite database.
+        Recursive call
+
+        :param tree_image: copy of JSON BM datafile
+        :return: (True, empty string)  or (False, error message) and filled tree
+        """
+        for child in tree_image['children']:  # loop for children list of the folder
+            if 'children' in child:  # node has a children list, so it 'is a folder
+                self.convert(child)  # recursion call for the nested nodes
+                self.add_node(child, True)  # add a folder
+            else:
+                self.add_node(child, False)  # add an url
+
+class ChromeToTree:
+    """A class to convert Chrome bookmark (JSON) format into internal tree format.
+    """
     def __init__(self):
         """Constructor method.
         """
@@ -124,10 +256,12 @@ class ChromeToJSON:
 
         return True, ''  # return success
 
+
 def print_verbose(message: str, verbose):
     """Print message if verbose mode set."""
     if verbose:
         print(message)
+
 
 def chrome_to_json(source: str, destination: str):
     """Convert Chrome bookmark to internal JSON format.
@@ -135,9 +269,9 @@ def chrome_to_json(source: str, destination: str):
 
     :param source: filename of external Chrome bookmark (JSON format)
     :param destination: filename of BookmarkManager internal JSON format
-    :return:
+    :return: a tuple (True, empty string)  or (False, error message)
     """
-    conv = ChromeToJSON()  # instance of (Chrome -> JSON converter)
+    conv = ChromeToTree()  # instance of (Chrome -> JSON converter)
     res, error = conv.convert(source)  # convert and get the result
     if res:
         # conversion is ok, try to write the tree into destination file
@@ -148,6 +282,32 @@ def chrome_to_json(source: str, destination: str):
             res = False
             error = str(e)
     return res, error  # return result and error if exists
+
+
+def json_to_sqlite(source: str, destination: str):
+    """Convert internal JSON file to SQLite database format.
+    Open and read internal JSON file.
+    Create SQLite file, open and close connection, check errors.
+
+    :param source: filename of internal bookmarks (JSON format)
+    :param destination: filename of BookmarkManager internal SQLite format
+    :return: a tuple (True, empty string)  or (False, error message)
+    """
+    # open and read source datafile
+    try:
+        # ---- read json database ----
+        with open(source, 'r') as f:   # open the tree image file, or FileNotFoundError exception
+            tree_image = json.load(f)   # read the json image and then close the file, image is a dict
+    except json.JSONDecodeError as e:
+        return False, str(e)  # return JSON decode error
+    # conversion begins
+    try:
+        conv = JSONToSQLite(destination, tree_image)  # instance of (JSON -> SQLite converter)
+        conv.convert(tree_image)  # convert memory JSON image into SQLite database
+        conv.conn.close()  # success, close db connection
+        return True, ''
+    except sqlite3.Error as e:
+        return False, str(e)  # return error message
 
 
 def main():
@@ -178,11 +338,6 @@ def main():
     ap.add_argument('destination')
     args = ap.parse_args()
 
-
-    print(args)
-    print(type(args.verbose), args.verbose)
-
-
     # check if source exists
     if not os.path.isfile(args.source):
         print_verbose(f"Source file {args.source} does not exist", args.verbose)
@@ -198,9 +353,9 @@ def main():
         else:
             os.remove(args.destination)
 
-    # input and output files are ok
-    print(args.source)
-    print(args.destination)
+    # input and output files are ok, print if --verbose
+    print_verbose(f"Source: {args.source}", args.verbose)
+    print_verbose(f"Destination: {args.destination}", args.verbose)
 
     # what to do
     match args.from_, args.to:
@@ -209,7 +364,7 @@ def main():
         case ['chrome', 'sqlite']:  # from Chrome to internal sqlite
             return
         case ['json', 'sqlite']:  # from internal json to internal sqlite
-            return
+            res, error = json_to_sqlite(args.source, args.destination)
         case ['sqlite', 'json']:  # from internal sqlite to internal json
             return
         case _:
@@ -219,7 +374,7 @@ def main():
     # exit section
     # print if --verbose
     if res:
-        print(f"{args.source} converted to {args.destination} successfully")  # success massage
+        print_verbose(f"{args.source} converted to {args.destination} successfully", args.verbose)  # success massage
     else:
         print_verbose(f"Error {error} occurred during conversion.", args.verbose)  # error message
         exit(1)
