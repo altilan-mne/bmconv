@@ -11,6 +11,7 @@ Information from https://stackoverflow.com/questions/539900/google-bookmark-expo
 Supported formats (case-insensitive): Unix, JavaScript, Windows, Google, PubNub
 """
 from datetime import datetime
+from datetime import timezone
 
 import exceptions
 
@@ -41,7 +42,7 @@ def stamp_to_object(timestamp: int, epoch_type: str) -> datetime:
         """Raise bad epoch type error"""
         raise exceptions.BadEpochType(epoch_type)
 
-    return datetime.fromtimestamp(timestamp)
+    return datetime.utcfromtimestamp(timestamp)  # return not local but UTC datetime to avoid local settings
 
 def stamp_to_string(timestamp: int, epoch_type: str) -> str:
     """Convert a timestamp of non-Unix formats to the Unix format
@@ -94,7 +95,7 @@ def main():
     print(res)
     # from Unix format
     epoch_type = 'Google'
-    datetime_instance = datetime(2016, 1, 22, 10, 29, 42, 951728)
+    datetime_instance = datetime(2016, 1, 22, 10, 29, 42, 951728, tzinfo=timezone.utc)
     print(datetime_instance.microsecond)
     result = object_to_stamp(datetime_instance, epoch_type)
     print(result)
@@ -102,4 +103,4 @@ def main():
 if __name__ == '__main__':
     main()
 
-"""13097921382951728 == 2016-01-22 10:29:42.951729"""
+"""13097921382951728 == 2016-01-22 07:29:42.951728 for UTC timezone"""

@@ -21,7 +21,7 @@ from time_convert import stamp_to_string
 
 
 # common data
-version = 'BM file converter 2.0'
+version = 'Bookmark file converter 2.0'
 list_input_formats = ['chrome', 'json', 'sqlite']
 list_output_formats = ['json', 'sqlite']
 

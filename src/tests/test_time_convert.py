@@ -43,7 +43,7 @@ class TestTimeToObject:
             print('\nWrong input parameter:', e, file=sys.stderr)
         else:
             print('\nInput parameters are OK')
-            assert str(self.dt) == '2016-01-22 10:29:42'
+            assert str(self.dt) == '2016-01-22 07:29:42'
 
     def test_stamp_to_string(self):
         """Return a Unix format datestamp as a string"""
@@ -51,14 +51,14 @@ class TestTimeToObject:
         self.epoch_type = 'Google'  # Right epoch type Google
 
         self.date_string = stamp_to_string(self.timestamp, self.epoch_type)
-        assert self.date_string == '2016-01-22T10:29:42'
+        assert self.date_string == '2016-01-22T07:29:42'
 
 
 
 class TestObjectToTime:
     def test_epoch_type(self):
         """Return error if the epoch type is not valid"""
-        self.instance = datetime.datetime(2016, 1, 22, 10, 29, 42, 951728)
+        self.instance = datetime.datetime(2016, 1, 22, 10, 29, 42, 951728, tzinfo=datetime.timezone.utc)
         self.epoch_type = 'Googl'   # incorrect epoch type, should be Google
         # testing
         try:
@@ -72,7 +72,7 @@ class TestObjectToTime:
 
     def test_object_to_stamp(self):
         """Return the calculated timestamp in the required format """
-        self.instance = datetime.datetime(2016, 1, 22, 10, 29, 42, 951728)
+        self.instance = datetime.datetime(2016, 1, 22, 10, 29, 42, 951728, tzinfo=datetime.timezone.utc)
         self.epoch_type = 'Google'  # Right epoch type Google
         # testing
         try:
@@ -81,4 +81,4 @@ class TestObjectToTime:
             print('\nWrong input parameter:', e, file=sys.stderr)
         else:
             print('\nInput parameters are OK')
-            assert self.ts == 13097921382951728
+            assert self.ts == 13097932182951728
